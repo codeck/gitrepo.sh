@@ -1,11 +1,5 @@
 #!/bin/bash
 
-#convert hex to base58 without dc
-# hex2base58 "122000000"
-# echo "8QwQj1 ?"
-# hex2base58 "807542FB6685F9FD8F37D56FAF62F0BB4563684A51539E4B26F0840DB361E0027CCD5C4A8E"
-# echo "5JhvsapkHeHjy2FiUQYwXh1d74evuMd3rGcKGnifCdFR5G8e6nH ?"
-
 base58sym=({1..9} {A..H} {J..N} {P..Z} {a..k} {m..z})
 calcmod58() {
 	local sum=0
@@ -42,10 +36,6 @@ hex2base58() {
 	calcmod58	
 }
 
-# repo = depots + (mirros) + build
-# update: download latest from remote and do git remote update
-# save: upload to the main site(sae) and dispread to multi remotes (qiniu/oss/...)
-
 read -p "Username: " uname
 #read -s -p "Password: " passwd
 unset passwd
@@ -62,19 +52,23 @@ done
 echo
 
 blobid=`echo -n $uname | openssl sha  -sha256 -hmac $passwd`
-randkey=$(hex2base58 `openssl rand -hex 32`)
 
 case $1 in
-	save) 
+	pack) 
 		pushd $2
-		tar cfz - depots |openssl aes-256-cbc -salt -k 123456 -out out.tgz.aes
+		randkey=$(hex2base58 `openssl rand -hex 16`)
+		namepre=`basename $2`-`date +%F.%H%M`
+		echo "packing using random key $randkey..."
+		echo -n $randkey|openssl aes-128-cbc -salt -k $uname:$passwd -a -out $namepre.ss
+		tar cfz - *.git |openssl aes-256-cbc -salt -k $randkey -out $namepre.stgz
 		popd
 		;;
-	update) 
-		openssl aes-256-cbc -d -in $2/out.tgz.aes | tar zx
+	unpack) 
+		randkey=`openssl aes-128-cbc -d -k $uname:$passwd -base64 -in $2`
+		openssl aes-256-cbc -d -k $randkey -in ${2%.ss}.stgz | tar zx
 		;;
 	*)
-		echo "only save/upload command supported!"
+		echo "only pack/unpack command supported!"
 		;;
 esac
 	
