@@ -1,17 +1,35 @@
 #!/bin/bash
 
-#convert hex to base58 without dc
-# hex2base58 "122000000"
-# echo "8QwQj1 ?"
-# hex2base58 "807542FB6685F9FD8F37D56FAF62F0BB4563684A51539E4B26F0840DB361E0027CCD5C4A8E"
-# echo "5JhvsapkHeHjy2FiUQYwXh1d74evuMd3rGcKGnifCdFR5G8e6nH ?"
+module(){ IFS='' read -r -d '' ${1} || true; }
+
+module MISCUTIL<<'EOF'
 bin2hex() {
 	od -A n -v -t x1|tr -d '\n[:space:]'
 }
-# repo = depots + (mirros) + build
-# update: download latest from remote and do git remote update
-# save: upload to the main site(sae) and dispread to multi remotes (qiniu/oss/...)
+blobid=`echo -n $uname | openssl sha  -sha256 -hmac $passwd`
 
+EOF
+
+module READPASS <<'EOF'
+read -p "Username: " uname
+#read -s -p "Password: " passwd
+unset passwd
+prompt="Password:"
+while IFS= read -p "$prompt" -r -s -n 1 char
+do
+    if [[ $char == $'\0' ]]
+    then
+        break
+    fi
+    prompt='*'
+    passwd+="$char"
+done
+echo
+
+EOF
+
+module BASE58 <<'EOF'
+#convert hex to base58 without dc
 calcmod() {
 	local sum=0
 	local nzero=0
@@ -70,36 +88,33 @@ base582hex() {
 	calcmod
 }
 
-hex2base58 "122000000"
-echo "8QwQj1 ?"
-hex2base58 "807542FB6685F9FD8F37D56FAF62F0BB4563684A51539E4B26F0840DB361E0027CCD5C4A8E"
-echo "5JhvsapkHeHjy2FiUQYwXh1d74evuMd3rGcKGnifCdFR5G8e6nH ?"
-base582hex "5JhvsapkHeHjy2FiUQYwXh1d74evuMd3rGcKGnifCdFR5G8e6nH"
-echo "807542FB6685F9FD8F37D56FAF62F0BB4563684A51539E4B26F0840DB361E0027CCD5C4A8E ?"
-echo "012"|bin2hex
-exit
+EOF
 
-read -p "Username: " uname
-#read -s -p "Password: " passwd
-unset passwd
-prompt="Password:"
-while IFS= read -p "$prompt" -r -s -n 1 char
-do
-    if [[ $char == $'\0' ]]
-    then
-        break
-    fi
-    prompt='*'
-    passwd+="$char"
-done
-echo
-
-blobid=`echo -n $uname | openssl sha  -sha256 -hmac $passwd`
+eval "$BASE58"
 
 case $1 in
+	memo)
+		[[ -z $2 ]] && echo "need memo file name!" && exit
+		[[ -e $2 ]] && echo "memo file exists, abort" && exit
+		eval "$READPASS"
+		randkey=$(hex2base58 `openssl rand -hex 16`)
+		sskey=$(echo -n $randkey|openssl aes-128-cbc -salt -k $uname:$passwd -a)
+
+		echo "say the secret... (ctrl-d to end, then encrypt by random key $randkey)"
+		secret=$(cat|openssl aes-256-cbc -salt -k $randkey -a)
+
+		echo "#!/bin/bash">$2
+		echo "$READPASS" >>$2
+		echo "randkey=\`openssl aes-128-cbc -d -k \$uname:\$passwd -base64 <<'EOF'" >>$2
+		echo "$sskey" >>$2
+		echo "EOF\`" >>$2
+		echo "openssl aes-256-cbc -d -k \$randkey -base64 <<'EOF'" >>$2
+		echo "$secret" >>$2
+		echo "EOF" >>$2
+		echo "secret saved to $2"
+		;;
 	pack) 
 		pushd $2
-		randkey=$(hex2base58 `openssl rand -hex 16`)
 		namepre=`basename $2`-`date +%F.%H%M`
 		echo "packing using random key $randkey..."
 		echo -n $randkey|openssl aes-128-cbc -salt -k $uname:$passwd -a -out $namepre.ss
