@@ -116,17 +116,21 @@ case $1 in
 	pack) 
 		pushd $2
 		namepre=`basename $2`-`date +%F.%H%M`
+		eval "$READPASS"
+		randkey=$(hex2base58 `openssl rand -hex 16`)
+		sskey=$(echo -n $randkey|openssl aes-128-cbc -salt -k $uname:$passwd -a)
 		echo "packing using random key $randkey..."
-		echo -n $randkey|openssl aes-128-cbc -salt -k $uname:$passwd -a -out $namepre.ss
+		echo "#!/bin/bash">$namepre.ss
+		echo "$READPASS" >>$namepre.ss
+		echo "randkey=\`openssl aes-128-cbc -d -k \$uname:\$passwd -base64 <<'EOF'" >>$namepre.ss
+		echo "$sskey" >>$namepre.ss
+		echo "EOF\`" >>$namepre.ss
+		echo "openssl aes-256-cbc -d -k \$randkey -in \${0%.ss}.stgz | tar zt" >>$namepre.ss
 		tar cfz - *.git |openssl aes-256-cbc -salt -k $randkey -out $namepre.stgz
 		popd
 		;;
-	unpack) 
-		randkey=`openssl aes-128-cbc -d -k $uname:$passwd -base64 -in $2`
-		openssl aes-256-cbc -d -k $randkey -in ${2%.ss}.stgz | tar zx
-		;;
 	*)
-		echo "only pack/unpack command supported!"
+		echo "only memo/pack command supported!"
 		;;
 esac
 	
