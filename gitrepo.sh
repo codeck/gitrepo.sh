@@ -95,7 +95,24 @@ eval "$BASE58"
 case $1 in
 	memo)
 		[[ -z $2 ]] && echo "need memo file name!" && exit
-		[[ -e $2 ]] && echo "memo file exists, abort" && exit
+		if [[ -e $2 ]]			
+			then read -n 1 -p "file exits, append to $2 ? (y/n)" yn
+			echo ""
+			if [ "y" = $yn ]
+			then 
+				randkey=''
+				eval "$(sed -n '0,/^#V2PayLoads$/p' $2)"
+				echo "say the secret to append... (ctrl-d to end, then encrypt by random key $randkey)"
+				secret=$(cat|openssl aes-256-cbc -salt -k $randkey -a)
+				echo "openssl aes-256-cbc -d -k \$randkey -base64 <<'=EOF='" >>$2
+				echo "$secret" >>$2
+				echo "=EOF=" >>$2
+				echo "done!"
+			else
+				echo "abort!"
+			fi
+			exit
+		fi
 		eval "$READPASS"
 		randkey=$(hex2base58 `openssl rand -hex 16`)
 		sskey=$(echo -n $randkey|openssl aes-128-cbc -salt -k $uname:$passwd -a)
@@ -108,6 +125,10 @@ case $1 in
 		echo "randkey=\`openssl aes-128-cbc -d -k \$uname:\$passwd -base64 <<'=EOF='" >>$2
 		echo "$sskey" >>$2
 		echo "=EOF=\`" >>$2
+		echo "if [[ \$? != 0 || -z randkey ]]" >>$2
+		echo "then echo 'Wrong password!';  unset randkey; exit 1" >>$2
+		echo "fi" >>$2
+		echo "#V2PayLoads" >>$2
 		echo "openssl aes-256-cbc -d -k \$randkey -base64 <<'=EOF='" >>$2
 		echo "$secret" >>$2
 		echo "=EOF=" >>$2
