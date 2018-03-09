@@ -103,8 +103,8 @@ case $1 in
 				randkey=''
 				eval "$(sed -n '0,/^#V2PayLoads$/p' $2)"
 				echo "say the secret to append... (ctrl-d to end, then encrypt by random key $randkey)"
-				secret=$(cat|openssl aes-256-cbc -salt -k $randkey -a)
-				echo "openssl aes-256-cbc -d -k \$randkey -base64 <<'=EOF='" >>$2
+				secret=$(cat|openssl aes-256-cbc -salt -md sha256 -k $randkey -a)
+				echo "openssl aes-256-cbc -d -md sha256 -k \$randkey -base64 <<'=EOF='" >>$2
 				echo "$secret" >>$2
 				echo "=EOF=" >>$2
 				echo "done!"
@@ -115,21 +115,21 @@ case $1 in
 		fi
 		eval "$READPASS"
 		randkey=$(hex2base58 `openssl rand -hex 16`)
-		sskey=$(echo -n $randkey|openssl aes-128-cbc -salt -k $uname:$passwd -a)
+		sskey=$(echo -n $randkey|openssl aes-128-cbc -salt -md sha256 -k $uname:$passwd -a)
 
 		echo "say the secret... (ctrl-d to end, then encrypt by random key $randkey)"
 		secret=$(cat|openssl aes-256-cbc -salt -k $randkey -a)
 
 		echo "#!/bin/bash">$2
 		echo "$READPASS" >>$2
-		echo "randkey=\`openssl aes-128-cbc -d -k \$uname:\$passwd -base64 <<'=EOF='" >>$2
+		echo "randkey=\`openssl aes-128-cbc -d -md sha256 -k \$uname:\$passwd -base64 <<'=EOF='" >>$2
 		echo "$sskey" >>$2
 		echo "=EOF=\`" >>$2
 		echo "if [[ \$? != 0 || -z randkey ]]" >>$2
 		echo "then echo 'Wrong password!';  unset randkey; exit 1" >>$2
 		echo "fi" >>$2
 		echo "#V2PayLoads" >>$2
-		echo "openssl aes-256-cbc -d -k \$randkey -base64 <<'=EOF='" >>$2
+		echo "openssl aes-256-cbc -d -md sha256 -k \$randkey -base64 <<'=EOF='" >>$2
 		echo "$secret" >>$2
 		echo "=EOF=" >>$2
 		echo "secret saved to $2"
@@ -139,15 +139,15 @@ case $1 in
 		namepre=`basename $2`-`date +%F.%H%M`
 		eval "$READPASS"
 		randkey=$(hex2base58 `openssl rand -hex 16`)
-		sskey=$(echo -n $randkey|openssl aes-128-cbc -salt -k $uname:$passwd -a)
+		sskey=$(echo -n $randkey|openssl aes-128-cbc -salt -md sha256 -k $uname:$passwd -a)
 		echo "packing using random key $randkey..."
 		echo "#!/bin/bash">$namepre.ss
 		echo "$READPASS" >>$namepre.ss
-		echo "randkey=\`openssl aes-128-cbc -d -k \$uname:\$passwd -base64 <<'=EOF='" >>$namepre.ss
+		echo "randkey=\`openssl aes-128-cbc -d -md sha256 -k \$uname:\$passwd -base64 <<'=EOF='" >>$namepre.ss
 		echo "$sskey" >>$namepre.ss
 		echo "=EOF=\`" >>$namepre.ss
-		echo "openssl aes-256-cbc -d -k \$randkey -in \${0%.ss}.stgz | tar zx" >>$namepre.ss
-		tar cfz - *.git |openssl aes-256-cbc -salt -k $randkey -out $namepre.stgz
+		echo "openssl aes-256-cbc -d -md sha256 -k \$randkey -in \${0%.ss}.stgz | tar zx" >>$namepre.ss
+		tar cfz - *.git |openssl aes-256-cbc -salt -md sha256 -k $randkey -out $namepre.stgz
 		popd
 		;;
 	*)
