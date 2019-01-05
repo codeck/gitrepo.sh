@@ -118,7 +118,7 @@ case $1 in
 		sskey=$(echo -n $randkey|openssl aes-128-cbc -salt -md sha256 -k $uname:$passwd -a)
 
 		echo "say the secret... (ctrl-d to end, then encrypt by random key $randkey)"
-		secret=$(cat|openssl aes-256-cbc -salt -k $randkey -a)
+		secret=$(cat|openssl aes-256-cbc -salt -md sha256 -k $randkey -a)
 
 		echo "#!/bin/bash">$2
 		echo "$READPASS" >>$2
